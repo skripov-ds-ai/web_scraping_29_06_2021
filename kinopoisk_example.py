@@ -1,7 +1,12 @@
 import time
 import requests
 from bs4 import BeautifulSoup
+from pymongo import MongoClient
 
+MONGO_HOST = "localhost"
+MONGO_PORT = 27017
+MONGO_DB = "films"
+MONGO_COLL = "serials"
 ENDPOINT_URL = "https://www.kinopoisk.ru/popular/films/"
 PARAMS = {
     "tab": "all",
@@ -10,10 +15,12 @@ PARAMS = {
 
 
 class KinopoiskScraper:
-    def __init__(self, start_url, params):
+    def __init__(self, start_url, params, host, port, db_name, coll_name):
         self.start_url = start_url
         self.start_params = params
-        self.info_about_films = []
+        self.client = MongoClient(host, port)
+        self.db = self.client[db_name]
+        self.collection = self.db[coll_name]
 
     def get_html_string(self, url, params):
         try:
@@ -30,11 +37,12 @@ class KinopoiskScraper:
         return BeautifulSoup(html_string, "html.parser")
 
     def run(self):
-        self.paginate(self.start_url, self.start_params)
+        self.parse_search_page(self.start_url, self.start_params)
         for page_number in range(2, 7):
             params = self.start_params
             params["page"] = page_number
-            self.paginate(self.start_url, params)
+            self.parse_search_page(self.start_url, params)
+        self.client.close()
 
     def get_info_from_element(self, element):
         info = {}
@@ -54,13 +62,7 @@ class KinopoiskScraper:
             print(e)
         return info
 
-    def save_info_about_films(self):
-        # TODO
-        # with open(...) as f:
-        pass
-
-    # only to page 2
-    def paginate(self, url, params):
+    def parse_search_page(self, url, params):
         html_string = self.get_html_string(url, params)
         if html_string is None:
             print("There was an error")
@@ -72,10 +74,11 @@ class KinopoiskScraper:
         )
         for element in film_elements:
             info = self.get_info_from_element(element)
-            self.info_about_films.append(info)
+            self.collection.insert_one(info)
 
 
 if __name__ == "__main__":
-    scraper = KinopoiskScraper(ENDPOINT_URL, PARAMS)
+    scraper = KinopoiskScraper(
+        ENDPOINT_URL, PARAMS, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLL
+    )
     scraper.run()
-    scraper.save_info_about_films()
