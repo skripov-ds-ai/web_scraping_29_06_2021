@@ -8,6 +8,7 @@ repos:
             language: system
             types: [python]
             args: ["--check"]
+            exclude: "^avito/avitoscraper/(settings|middlewares).py$"
 
           - id: isort
             name: isort
@@ -21,3 +22,4 @@ repos:
             entry: flake8
             language: system
             types: [python]
+            exclude: "^(avito/avitoscraper|otparser)/(settings|middlewares).py$"
