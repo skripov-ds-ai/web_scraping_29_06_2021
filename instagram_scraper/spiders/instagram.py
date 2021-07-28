@@ -26,6 +26,7 @@ class InstagramSpider(scrapy.Spider):
 
     def parse(self, response: HtmlResponse, **kwargs):
         token = self.fetch_csrf_token(response.text)
+        x_instagram_ajax = self.fetch_x_instagram_ajax(response.text)
         yield scrapy.FormRequest(
             url=self.login_url,
             method="POST",
@@ -35,6 +36,8 @@ class InstagramSpider(scrapy.Spider):
             },
             headers={
                 "X-CSRFToken": token,
+                "x-ig-app-id": "936619743392459",
+                "x-instagram-ajax": x_instagram_ajax,
             },
             callback=self.user_login,
         )
@@ -53,9 +56,28 @@ class InstagramSpider(scrapy.Spider):
         if data["authenticated"]:
             yield response.follow(
                 self.template_user_url % self.user_to_parse,
+                # callback=self.parse_following,
                 callback=self.user_page_parse,
                 cb_kwargs={"username": self.user_to_parse},
             )
+
+    def parse_following(self, response: HtmlResponse, username: str):
+        user_id = self.fetch_user_id(response.text, username)
+        url = "https://i.instagram.com/api/v1/friendships/%s/followers/?count=12&search_surface=follow_list_page"
+        url = url % user_id
+        yield response.follow(
+            url,
+            callback=self.parse_something,
+            headers={
+                "x-ig-app-id": "936619743392459",
+            },
+        )
+
+    # TODO
+    def parse_something(self, response: HtmlResponse):
+        print("parse_something!")
+        print(response.json())
+        print()
 
     def user_page_parse(self, response: HtmlResponse, username: str):
         user_id = self.fetch_user_id(response.text, username)
@@ -152,6 +174,11 @@ class InstagramSpider(scrapy.Spider):
     # get token for authorization
     def fetch_csrf_token(self, text):
         matched = re.search('"csrf_token":"\\w+"', text).group()
+        return matched.split(":").pop().replace(r'"', "")
+
+    # rollout_hash ; x_instagram_ajax
+    def fetch_x_instagram_ajax(self, text):
+        matched = re.search('"rollout_hash":"\\w+"', text).group()
         return matched.split(":").pop().replace(r'"', "")
 
     # get user_id for interesting user
